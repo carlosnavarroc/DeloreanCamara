@@ -83,7 +83,7 @@ class MainActivity : AppCompatActivity() {
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
 
-        // 👇 1️⃣ Listener de gestos (VA AQUÍ)
+        //  Listener de gestos
         overlayImage.setOnTouchListener { _, event ->
 
             when (event.action and MotionEvent.ACTION_MASK) {
@@ -132,15 +132,48 @@ class MainActivity : AppCompatActivity() {
             true
         }
 
-        // 👇 2️⃣ Selector de imagen
+        // Selector de imagen
         btnSelectImage.setOnClickListener {
             pickImageLauncher.launch("image/*")
         }
 
-        // 👇 3️⃣ Cámara
+        //  Cámara
         requestCameraPermission()
 
 
+    }
+    private fun getPreviewCropRect(
+        bitmap: Bitmap,
+        previewView: PreviewView
+    ): RectF {
+
+        val previewRatio =
+            previewView.width.toFloat() / previewView.height.toFloat()
+
+        val bitmapRatio =
+            bitmap.width.toFloat() / bitmap.height.toFloat()
+
+        return if (bitmapRatio > previewRatio) {
+            // bitmap más ancho → recorte horizontal
+            val newWidth = bitmap.height * previewRatio
+            val xOffset = (bitmap.width - newWidth) / 2f
+            RectF(
+                xOffset,
+                0f,
+                xOffset + newWidth,
+                bitmap.height.toFloat()
+            )
+        } else {
+            // bitmap más alto → recorte vertical
+            val newHeight = bitmap.width / previewRatio
+            val yOffset = (bitmap.height - newHeight) / 2f
+            RectF(
+                0f,
+                yOffset,
+                bitmap.width.toFloat(),
+                yOffset + newHeight
+            )
+        }
     }
 
 
@@ -167,6 +200,34 @@ class MainActivity : AppCompatActivity() {
                 overlayImage.visibility = ImageView.VISIBLE
             }
         }
+
+    private fun cropToPreviewRatio(bitmap: Bitmap): Bitmap {
+
+        if (previewView.width == 0 || previewView.height == 0) {
+            return bitmap // no recortar si aún no está listo
+        }
+
+        val previewRatio =
+            previewView.width.toFloat() / previewView.height.toFloat()
+
+        val bitmapRatio =
+            bitmap.width.toFloat() / bitmap.height.toFloat()
+
+        return try {
+            if (bitmapRatio > previewRatio) {
+                val newWidth = (bitmap.height * previewRatio).toInt()
+                val xOffset = (bitmap.width - newWidth) / 2
+                Bitmap.createBitmap(bitmap, xOffset, 0, newWidth, bitmap.height)
+            } else {
+                val newHeight = (bitmap.width / previewRatio).toInt()
+                val yOffset = (bitmap.height - newHeight) / 2
+                Bitmap.createBitmap(bitmap, 0, yOffset, bitmap.width, newHeight)
+            }
+        } catch (e: Exception) {
+            bitmap // fallback seguro
+        }
+    }
+
 
     private fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
@@ -228,13 +289,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun saveCombinedImage(cameraFile: File) {
+        if (previewView.width == 0 || previewView.height == 0) {
+            Toast.makeText(this, "La cámara aún no está lista", Toast.LENGTH_SHORT).show()
+            return
+        }
 
-        // 1️⃣ Cargar bitmap de la foto original y rotarlo si es necesario
+        // Cargar bitmap de la foto original y rotarlo si es necesario
         var cameraBitmap = BitmapFactory.decodeFile(cameraFile.absolutePath)
         cameraBitmap = rotateBitmapIfRequired(cameraBitmap, cameraFile)
         cameraBitmap = cameraBitmap.copy(Bitmap.Config.ARGB_8888, true)
 
-        // 2️⃣ Crear bitmap final
+        // Crear bitmap final
         val resultBitmap = Bitmap.createBitmap(
             cameraBitmap.width,
             cameraBitmap.height,
@@ -246,30 +311,46 @@ class MainActivity : AppCompatActivity() {
         // 3️⃣ Dibujar overlay si existe
         overlayImage.drawable?.let { drawable ->
 
+            val w = drawable.intrinsicWidth.takeIf { it > 0 } ?: previewView.width
+            val h = drawable.intrinsicHeight.takeIf { it > 0 } ?: previewView.height
+
             val overlayBitmap = Bitmap.createBitmap(
-                drawable.intrinsicWidth,
-                drawable.intrinsicHeight,
+                w,
+                h,
                 Bitmap.Config.ARGB_8888
             )
+            if (overlayImage.drawable == null) {
+                Toast.makeText(this, "Selecciona una imagen primero", Toast.LENGTH_SHORT).show()
+                return
+            }
+
             val overlayCanvas = Canvas(overlayBitmap)
             drawable.draw(overlayCanvas)
 
             val paint = Paint()
             paint.alpha = (overlayImage.alpha * 255).toInt()
+            val cropRect = getPreviewCropRect(cameraBitmap, previewView)
 
-            // Escalar overlay según PreviewView → cameraBitmap
-            val scaleX = cameraBitmap.width.toFloat() / previewView.width
-            val scaleY = cameraBitmap.height.toFloat() / previewView.height
+            val scaleX = cropRect.width() / previewView.width
+            val scaleY = cropRect.height() / previewView.height
 
             val overlayMatrix = Matrix()
-            overlayMatrix.set(matrix)  // posición y zoom del usuario
+
+//  mover overlay según gestos
+            overlayMatrix.set(matrix)
+
+//  escalar de PreviewView → bitmap recortado
             overlayMatrix.postScale(scaleX, scaleY)
 
+//  mover al offset real del bitmap
+            overlayMatrix.postTranslate(cropRect.left, cropRect.top)
+
             canvas.drawBitmap(overlayBitmap, overlayMatrix, paint)
+
         }
 
         try {
-            // 4️⃣ Guardar imagen combinada en galería
+            // Guardar imagen combinada en galería
             val values = ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, "combined_${System.currentTimeMillis()}.jpg")
                 put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
@@ -283,7 +364,7 @@ class MainActivity : AppCompatActivity() {
                 Toast.makeText(this, "Imagen combinada guardada en galería", Toast.LENGTH_LONG).show()
             }
 
-            // 5️⃣ Guardar foto original también
+            // Guardar foto original también
             val originalValues = ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, "original_${System.currentTimeMillis()}.jpg")
                 put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
