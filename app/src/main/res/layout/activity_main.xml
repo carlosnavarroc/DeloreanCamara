@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- Preview de la cámara -->
+    <androidx.camera.view.PreviewView
+        android:id="@+id/previewView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Imagen antigua superpuesta -->
+    <ImageView
+        android:id="@+id/overlayImage"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="matrix"
+        android:alpha="0.4"
+        android:visibility="gone" />
+
+    <!-- Botón seleccionar imagen -->
+    <ImageButton
+        android:id="@+id/btnSelectImage"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:layout_gravity="bottom|start"
+        android:layout_margin="24dp"
+        android:background="@android:color/transparent"
+        android:src="@android:drawable/ic_menu_gallery" />
+
+    <!-- Botón guardar -->
+    <ImageButton
+        android:id="@+id/btnSave"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="24dp"
+        android:background="@android:color/transparent"
+        android:src="@android:drawable/ic_menu_save" />
+    <SeekBar
+        android:id="@+id/seekBarOpacity"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_margin="16dp"
+        android:max="100"
+        android:progress="40" /> <!-- valor inicial igual al alpha actual -->
+
+</FrameLayout>
